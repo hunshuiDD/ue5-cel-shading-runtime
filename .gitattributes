@@ -1,0 +1,14 @@
+# 统一行尾，避免 Windows / Linux 混提交产生整文件 diff
+* text=auto eol=lf
+
+# 二进制
+*.png binary
+*.jpg binary
+
+# UE / Shader 文件按文本处理
+*.ush text
+*.usf text
+*.hlsl text
+*.uplugin text
+*.uproject text
+*.ini text

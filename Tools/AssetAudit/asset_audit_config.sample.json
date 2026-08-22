@@ -1,0 +1,99 @@
+{
+  "_说明": "示例配置。每个顶层字段整体替换脚本内置默认值，不做逐项合并——改单个阈值也要保留整块。",
+  "teams": {
+    "Character": [
+      "/Character",
+      "/Charactor",
+      "Daniya",
+      "Xigelika"
+    ],
+    "Environment": [
+      "/Env",
+      "/Scene",
+      "/Prop",
+      "/Map",
+      "/Classic_Office",
+      "SM_",
+      "Sweet",
+      "Dessert"
+    ],
+    "VFX": [
+      "/FX",
+      "/VFX",
+      "/Niagara",
+      "/Particle"
+    ],
+    "UI": [
+      "/UI",
+      "/HUD",
+      "/Widget"
+    ]
+  },
+  "thresholds": {
+    "FullMB": {
+      "warn": 8,
+      "crit": 21
+    },
+    "MaxDim": {
+      "warn": 2048,
+      "crit": 4096
+    },
+    "TriCount": {
+      "warn": 30000,
+      "crit": 100000
+    },
+    "TotalTris": {
+      "warn": 2000000,
+      "crit": 10000000
+    },
+    "Sections": {
+      "warn": 4,
+      "crit": 8
+    },
+    "ResourceMB": {
+      "warn": 10,
+      "crit": 50
+    },
+    "MaterialCount": {
+      "warn": 3,
+      "crit": 6
+    },
+    "DiskBytes": {
+      "warn": 10485760,
+      "crit": 52428800
+    },
+    "DiskMB": {
+      "warn": 0.5,
+      "crit": 1.0
+    },
+    "PhysicsRatio": {
+      "warn": 0.4,
+      "crit": 0.5
+    },
+    "BuildMemMB": {
+      "warn": 16,
+      "crit": 32
+    },
+    "NaniteMinTris": {
+      "warn": 1000,
+      "crit": 1000
+    },
+    "VertPerTri": {
+      "warn": 1.5,
+      "crit": 2.0
+    }
+  },
+  "cost_weights": {
+    "FullMB": 0.8,
+    "MaxDim": 0.2,
+    "TotalTris": 0.5,
+    "ResourceMB": 0.3,
+    "Sections": 0.2,
+    "DiskBytes": 0.3,
+    "MaterialCount": 0.2,
+    "DiskMB": 0.4,
+    "PhysicsRatio": 0.3,
+    "TriCount": 0.3
+  },
+  "column_hints": {}
+}

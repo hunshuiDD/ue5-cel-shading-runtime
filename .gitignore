@@ -1,0 +1,48 @@
+# === 兜底防线：本仓库不应存在任何引擎资产与编译产物 ===
+# 目录是按白名单拷贝进来的，这里再拦一道，防止后续误加
+
+# UE 二进制资产
+*.uasset
+*.umap
+
+# 编译产物
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+*.sln
+*.slnx
+*.vcxproj*
+
+# 模型与大素材
+*.fbx
+*.obj
+*.blend
+*.blend1
+*.tga
+*.psd
+*.exr
+
+# Python
+__pycache__/
+*.py[cod]
+
+Tools/UE_Python/fix_daniya_references.py
+
+# IDE / 本地配置
+.vs/
+.vsconfig
+.idea/
+.claude/
+.codex/
+.ai/
+*.user
+*.DotSettings.user
+
+# 系统
+.DS_Store
+__MACOSX/
+Thumbs.db
+
+# 内部实现笔记与截图，暂不对外；对外说明以根目录 README.md 为准
+Docs/

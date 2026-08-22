@@ -1,0 +1,37 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "UE5 二次元角色渲染系统 · 运行时与工具（材质与关卡资产为 .uasset，不在本仓库）",
+	"Modules": [
+		{
+			"Name": "RenderControlLearn",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "NPRRenderPipeline",
+			"Enabled": true
+		},
+		{
+			"Name": "PreObjectShadow",
+			"Enabled": true
+		},
+		{
+			"Name": "AssetNamingTool",
+			"Enabled": true
+		}
+	]
+}

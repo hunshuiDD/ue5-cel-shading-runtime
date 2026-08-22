@@ -1,0 +1,160 @@
+// =====================================================================
+//  PerShadow.ush — 角色自阴影核心函数 (UE5.7)
+//  被材质 Custom 节点通过 #include "/PreObjectShadow/PerShadow.ush" 引用。
+//
+//  把逻辑放进真实 .ush 文件的目的：编译报错指向本文件的【真实行号】，
+//  且可用控制台 `recompileshaders changed` 热编译，不必重开材质。
+//  虚拟路径 /PreObjectShadow 由 FPreObjectShadowModule::StartupModule()
+//  用 AddShaderSourceDirectoryMapping 映射到本插件 Shader/ 目录。
+//
+//  返回：DebugMode=0 时为阴影因子 shadow（1=全亮，0=全暗），其余模式返回诊断标量。
+//  全程线性世界空间、单位 cm，
+//  绕开 Reversed-Z / NDC / 8bit 截断三类历史坑（要求 RT=R32f, SceneDepth）。
+// =====================================================================
+
+#pragma once
+
+// Tex/TexSampler 由 Custom 节点的 Texture Object 输入引脚自动提供，作为参数传入。
+float PerShadow(
+    Texture2D   Tex, SamplerState TexSampler,
+    float3 WorldPos, float3 N, float3 L,
+    float3 CamPos, float3 Right, float3 Up, float3 Fwd,
+    float OrthoWidth, float Reso,
+    float ConstBias, float SlopeBias, float NormalBias,
+    float Mode, float SoftRadius, float LightSize, float DebugMode,
+    float2 ScreenPos)   // 像素坐标(SvPosition.xy)，仅用于每像素旋转抖动
+{
+    // ---- 一个纹素在世界里的尺寸(cm) ----
+    float texelWS = OrthoWidth / max(Reso, 1.0);
+
+    // ---- Normal Bias：采样前沿法线把接收点推离表面，纹素尺寸自适应 ----
+    float3 wp = WorldPos + N * (NormalBias * texelWS);
+
+    // ---- 投影到光源相机基上 ----
+    float3 local = wp - CamPos;
+    float2 uv;
+    uv.x = 0.5 + dot(local, Right) / OrthoWidth;   // 相机 Right 映射到 +U
+    uv.y = 0.5 - dot(local, Up)    / OrthoWidth;   // 相机 Up 映射到 -V(纹理V向下)
+
+    const bool insideCapture = uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+
+    // Debug 6：采样框内=白、框外=黑。必须在视锥外早退之前判断。
+    if (DebugMode >= 5.5)
+        return insideCapture ? 1.0 : 0.0;
+
+    // Debug 1：UV 网格。整数格线用于同时判断 U/V 方向和投影是否在移动。
+    if (DebugMode >= 0.5 && DebugMode < 1.5)
+    {
+        float2 grid = step(0.92, frac(uv * 10.0));
+        float uvDebug = saturate(max(grid.x, grid.y) + dot(saturate(uv), float2(0.25, 0.25)));
+        return insideCapture ? uvDebug : 0.0;
+    }
+
+    // 落在阴影视锥外 -> 判为全亮，避免边缘外的错误采样
+    if (!insideCapture)
+        return 1.0;
+
+    // ---- 接收点的线性深度(到光源相机, cm)。SceneDepth 存的也是同一个量 ----
+    float refDepth = dot(local, Fwd);
+
+    // ---- Slope-Scaled Depth Bias (cm)，斜面加大偏移消 acne ----
+    float NdotL = saturate(dot(N, L));
+    float slope = sqrt(saturate(1.0 - NdotL * NdotL)) / max(NdotL, 0.05);
+    float bias  = ConstBias + SlopeBias * slope;
+
+    // 遮挡体守卫：真实遮挡体深度总是几百 cm(拉开量>半径)。d<=Eps 视为“背景/镂空/未捕获”，
+    // 一律判亮。既兼容背景读到远平面大值，也兜住读到 0 的情况，避免镂空处误入影。
+    const float DepthEps = 1.0;
+
+    // 深度调试统一除以正交宽度，把世界空间 cm 映射到可查看的 0..1。
+    float depthScale = max(OrthoWidth, 1.0);
+    if (DebugMode >= 1.5 && DebugMode < 2.5)
+    {
+        float centerDepth = Tex.SampleLevel(TexSampler, uv, 0).r;
+        return centerDepth > DepthEps ? saturate(centerDepth / depthScale) : 0.0;
+    }
+    if (DebugMode >= 2.5 && DebugMode < 3.5)
+        return saturate(refDepth / depthScale);
+    if (DebugMode >= 3.5 && DebugMode < 4.5)
+        return NdotL;
+
+    // ---- 16 抽 Poisson Disk（半径归一化到[-1,1]）----
+    float2 poisson[16] = {
+        float2(-0.94201624, -0.39906216), float2( 0.94558609, -0.76890725),
+        float2(-0.09418410, -0.92938870), float2( 0.34495938,  0.29387760),
+        float2(-0.91588581,  0.45771432), float2(-0.81544232, -0.87912464),
+        float2(-0.38277543,  0.27676845), float2( 0.97484398,  0.75648379),
+        float2( 0.44323325, -0.97511554), float2( 0.53742981, -0.47373420),
+        float2(-0.26496911, -0.41893023), float2( 0.79197514,  0.19090188),
+        float2(-0.24188840,  0.99706507), float2(-0.81409955,  0.91437590),
+        float2( 0.19984126,  0.78641367), float2( 0.14383161, -0.14100790)
+    };
+
+    // ---- 每像素旋转：打散 16 抽固定角度造成的规则条带/重影 ----
+    // ScreenPos 必须是像素单位(PixelPosition)，接成 0~1 的 ViewportUV 会让相邻像素哈希近似同值、抖动失效
+    float  rnd = frac(sin(dot(ScreenPos, float2(12.9898, 78.233))) * 43758.5453);
+    float  ang = rnd * 6.2831853;
+    float2 sc  = float2(cos(ang), sin(ang));
+    float2x2 rot = float2x2(sc.x, -sc.y, sc.y, sc.x);
+
+    float shadow = 1.0;
+
+    // ================= 模式 0：硬阴影 =================
+    if (Mode < 0.5)
+    {
+        float centerDepth = Tex.SampleLevel(TexSampler, uv, 0).r;
+        shadow = (centerDepth > DepthEps && refDepth - centerDepth > bias) ? 0.0 : 1.0;
+    }
+    // ================= 模式 1：固定软阴影 (固定半径 PCF) =================
+    else if (Mode < 1.5)
+    {
+        float rUV = (SoftRadius * texelWS) / OrthoWidth;   // 纹素->UV
+        float sum = 0.0;
+        [unroll] for (int i = 0; i < 16; i++)
+        {
+            float d = Tex.SampleLevel(TexSampler, uv + mul(rot, poisson[i]) * rUV, 0).r;
+            sum += (d > DepthEps && refDepth - d > bias) ? 0.0 : 1.0;
+        }
+        shadow = sum / 16.0;
+    }
+    else
+    {
+        // ================= 模式 2：PCSS (blocker search -> 半影 -> 变半径 PCF) =================
+        float searchUV = LightSize / OrthoWidth;
+        const float BlockerBiasScale = 0.25;
+        float blockerBias = bias * BlockerBiasScale;
+
+        float blockerSum = 0.0;
+        int blockerCnt = 0;
+        [unroll] for (int i = 0; i < 16; i++)
+        {
+            float d = Tex.SampleLevel(TexSampler, uv + mul(rot, poisson[i]) * searchUV, 0).r;
+            if (d > DepthEps && refDepth - d > blockerBias)
+            {
+                blockerSum += d;
+                blockerCnt++;
+            }
+        }
+
+        if (blockerCnt > 0)
+        {
+            float dBlocker = blockerSum / (float)blockerCnt;
+            float penumbra = (refDepth - dBlocker) / max(dBlocker, 1.0) * LightSize;
+            float rUV = min(saturate(penumbra / OrthoWidth), searchUV);
+
+            float sum = 0.0;
+            [unroll] for (int j = 0; j < 16; j++)
+            {
+                float d = Tex.SampleLevel(TexSampler, uv + mul(rot, poisson[j]) * rUV, 0).r;
+                sum += (d > DepthEps && refDepth - d > bias) ? 0.0 : 1.0;
+            }
+            shadow = sum / 16.0;
+        }
+    }
+
+    // Debug 5 返回阴影区域遮罩；红色叠加由材质显示层把该值写入 R 通道。
+    if (DebugMode >= 4.5)
+        return 1.0 - shadow;
+
+    return shadow;
+}
