@@ -1,6 +1,6 @@
 # asset_audit_report.py 使用说明
 
-把 UE Asset Audit（资产审计）/ Statistics 面板导出的 CSV，加工成分团队、带条件色标记的 Excel 报表。对应 Unreal Fest 2025《Technical Artist's Guide to Profiling in Unreal Engine》(Crystal Dynamics) 里"资产治理"那一步，方法论详见 `Skills/ue-perf-profiling.skill`。
+把 UE Asset Audit（资产审计）/ Statistics 面板导出的 CSV，加工成分团队、带条件色标记的 Excel 报表。对应 Unreal Fest 2025《Technical Artist's Guide to Profiling in Unreal Engine》(Crystal Dynamics) 里"资产治理"那一步。
 
 通用工具，不绑定具体项目——团队分类、阈值、权重都在外部 JSON 配置里，换项目只改配置，不改代码。
 

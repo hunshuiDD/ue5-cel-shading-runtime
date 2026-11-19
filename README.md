@@ -12,11 +12,11 @@
 | 目录 | 内容 |
 |---|---|
 | `Source/RenderControlLearn/` | C++ 数据驱动运行时控制层：状态数据资产、角色渲染组件、函数库、质量分档、Project Settings |
-| `Plugins/NPRRenderPipeline/` | 渲染管线扩展插件：`FSceneViewExtension` + RDG 自定义 Pass 实现的屏幕空间内描边（全局 shader `FNPRInnerLinePS`，参数走 12 个 `r.NPR.InnerLine.*` CVar） |
+| `Plugins/NPRRenderPipeline/` | 渲染管线扩展插件：`FSceneViewExtension` + RDG 自定义 Pass 实现的屏幕空间内描边（全局 shader `FNPRInnerLinePS`，参数走 17 个 `r.NPR.InnerLine.*` CVar） |
 | `Plugins/PreObjectShadow/` | 角色自阴影插件：正交深度采集 ＋ `Shader/PerShadow.ush`（阴影数学全部收敛在这一个文件里） |
 | `Plugins/AssetNamingTool/` | 资产命名规范检查插件（C++），配置走 Project Settings，全量核对保持只读 |
 | `Tools/AssetAudit/` | 资产审计报表生成器：读 Texture Stats / Primitive Stats，派生贴图内存与面数密度并分级输出 |
-| `Tools/UE_Python/` | UE 编辑器脚本：性能采样、资产引用修复 |
+| `Tools/UE_Python/` | UE 编辑器脚本：性能采样 |
 | `Tools/Blender/` | Blender 脚本：程序化 blockout（幂等重建）、morph / 顶点色通道诊断 |
 | `Scripts/` | PowerShell：材质摘要导出 |
 
@@ -43,8 +43,9 @@ Duration · WeightCurve
 
 - 状态资产携带 `StatePayload` / `Duration` / `WeightCurve`，组件逐帧算权重写入材质实例；
   `Duration` 结束后 `bRestoreOriginalValues` 触发 `RestoreSnapshot()` 回滚到材质基线。
-- `URenderQualityDataAsset` 描述 High / Mid / Low 三档开关与数值，内置兜底默认值；
-  某档加载失败退回上一可用配置，而不是停在半初始化状态。
+- `URenderQualityDataAsset` 描述 High / Mid / Low 三档开关与数值；某档数据资产未配置时，
+  控制器回退到 `URenderProjectSettings` 里的同档默认值（唯一兜底数据源），直接传入空资产则不改动当前配置，
+  不会停在半初始化状态。
 
 关键类型见 `Source/RenderControlLearn/RenderRuntime/`。
 
@@ -80,7 +81,10 @@ VSM 能解决角色与场景之间的大范围投影，但头发投脸、饰品�
 
 **为什么把阴影数学收进 `.ush`**：旧实现把深度比较散在十几个材质节点里，符号、坐标系、单位到处漂移，修不收敛。
 
-三档过滤：PCSS 可变半影（每帧）/ 16 抽 Poisson PCF（每 2~3 帧）/ 单次采样硬阴影（降频或停用）。
+`PerShadow.ush` 里有三种过滤算法，由材质参数 `Mode` 选择：0 硬阴影（单次采样）/ 1 固定半径 PCF（16 抽 Poisson）/ 2 PCSS（blocker search → 半影 → 变半径 PCF）。
+它们是 shader 内的算法选项，**不是 High / Mid / Low 画质分档**：`FRenderQualitySettings` 里没有阴影模式字段，
+采集频率也只由 `CaptureEveryNFrames`（默认 4）统一控制，不随过滤算法变化。
+调试：`ShadowDebugMode` 0~6 共七个视图（正常 mask / UV / RT 采样深度 / 接收点深度 / N·L / 阴影红叠加 / 采样框内外），用来逐层定位采集框、深度与 Bias 问题。
 
 ### 一阶 SH 间接光
 
@@ -155,6 +159,7 @@ A/B 必须固定机位。Pass 级成本一律用 `ProfileGPU` 读绝对值，不
 
 - Demo Reel（03:10，含分章时间码）：https://www.bilibili.com/video/BV1yp3x6kEuH
 - Blender → UE5 资产验证与导入工具链：https://github.com/hunshuiDD/ai-dcc-ue5-pipeline
+- 作品集网页：https://hunshuiDD.github.io
 
 ## 素材声明
 
